@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+settings.json
+config.json
+mitmproxy/
+*.log
+*.previous
+.DS_Store

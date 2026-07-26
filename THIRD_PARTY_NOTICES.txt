@@ -1,0 +1,27 @@
+WLOC Windows Proxy — Third-Party Notices
+
+1. proxypin-wloc-spoofer
+
+Portions of the WLOC protobuf payload traversal and coordinate replacement
+design are based on:
+
+  https://github.com/FFF686868/proxypin-wloc-spoofer
+
+Copyright (c) 2026 WLOC ProxyPin Contributors
+Licensed under the MIT License. The applicable copyright notice and MIT
+permission text are reproduced in this repository's LICENSE file.
+
+2. mitmproxy
+
+This project installs mitmproxy as an external Python dependency and does not
+redistribute its source code. mitmproxy is licensed under the MIT License:
+
+  https://github.com/mitmproxy/mitmproxy
+
+3. Leaflet and OpenStreetMap
+
+The local settings page loads Leaflet and OpenStreetMap tiles from their
+public online services. Their respective licenses and usage policies apply:
+
+  https://github.com/Leaflet/Leaflet/blob/main/LICENSE
+  https://www.openstreetmap.org/copyright

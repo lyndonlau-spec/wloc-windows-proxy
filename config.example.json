@@ -1,0 +1,6 @@
+{
+  "listenHost": "0.0.0.0",
+  "proxyPort": 8080,
+  "settingsPort": 8081,
+  "upstreamProxy": ""
+}
