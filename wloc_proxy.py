@@ -8,7 +8,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Optional, Union
 
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.0.1"
 APP_HOME = Path(os.environ.get("WLOC_HOME", Path(__file__).resolve().parent))
 SETTINGS_PATH = APP_HOME / "settings.json"
 SETTINGS_PORT = int(os.environ.get("WLOC_SETTINGS_PORT", "8081"))

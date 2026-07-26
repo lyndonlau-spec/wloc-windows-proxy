@@ -11,6 +11,8 @@ $ErrorActionPreference = 'Stop'
 $root = 'C:\ProgramData\WlocProxy'
 $taskName = 'WLOC Proxy'
 $firewallName = 'WLOC Proxy'
+$watchTaskName = 'WLOC Network Watch'
+$hotspotFirewallName = 'WLOC Proxy Mobile Hotspot'
 $shortcut = Join-Path $env:PUBLIC 'Desktop\WLOC Location Settings.url'
 
 if ($ProxyPort -eq $SettingsPort) {
@@ -44,25 +46,33 @@ if ([int]$versionParts[0] -lt 3 -or ([int]$versionParts[0] -eq 3 -and [int]$vers
     throw "Python 3.12 or newer is required; found $pythonVersion."
 }
 
-foreach ($requiredFile in @('wloc_proxy.py', 'run.ps1', 'requirements.txt', 'uninstall.ps1')) {
+foreach ($requiredFile in @('wloc_proxy.py', 'run.ps1', 'network-watch.ps1', 'requirements.txt', 'uninstall.ps1')) {
     if (-not (Test-Path (Join-Path $PSScriptRoot $requiredFile))) {
         throw "Missing $requiredFile next to install.ps1."
     }
 }
 
+Stop-ScheduledTask -TaskName $watchTaskName -ErrorAction SilentlyContinue
 Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
 Start-Sleep -Seconds 1
 New-Item -ItemType Directory -Force $root | Out-Null
 Copy-Item -Force (Join-Path $PSScriptRoot 'wloc_proxy.py') $root
 Copy-Item -Force (Join-Path $PSScriptRoot 'run.ps1') $root
 Copy-Item -Force (Join-Path $PSScriptRoot 'requirements.txt') $root
+Copy-Item -Force (Join-Path $PSScriptRoot 'network-watch.ps1') $root
 Copy-Item -Force (Join-Path $PSScriptRoot 'uninstall.ps1') $root
 
 $venvPython = Join-Path $root 'venv\Scripts\python.exe'
 if (-not (Test-Path $venvPython)) {
     & $python -m venv (Join-Path $root 'venv')
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Failed to create the Python virtual environment.'
+    }
 }
 & $venvPython -m pip install --disable-pip-version-check --upgrade -r (Join-Path $root 'requirements.txt')
+if ($LASTEXITCODE -ne 0) {
+    throw 'Failed to install the locked Python dependencies.'
+}
 
 $config = [ordered]@{
     listenHost = $ListenHost
@@ -91,7 +101,21 @@ Register-ScheduledTask `
     -Settings $taskSettings `
     -Force | Out-Null
 
+$watchAction = New-ScheduledTaskAction `
+    -Execute 'powershell.exe' `
+    -Argument '-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "C:\ProgramData\WlocProxy\network-watch.ps1"'
+Register-ScheduledTask `
+    -TaskName $watchTaskName `
+    -Description 'Restart WLOC Proxy after the active upstream network changes' `
+    -Action $watchAction `
+    -Trigger $trigger `
+    -Principal $principal `
+    -Settings $taskSettings `
+    -Force | Out-Null
+
 Get-NetFirewallRule -DisplayName $firewallName -ErrorAction SilentlyContinue | Remove-NetFirewallRule
+Get-NetFirewallRule -DisplayName $hotspotFirewallName -ErrorAction SilentlyContinue | Remove-NetFirewallRule
+Get-NetFirewallRule -DisplayName 'WLOC Proxy Mobile Hotspot 8080' -ErrorAction SilentlyContinue | Remove-NetFirewallRule
 $firewallArgs = @{
     DisplayName = $firewallName
     Description = 'Allow WLOC proxy only from the private local subnet'
@@ -106,9 +130,20 @@ if ($ListenHost -ne '0.0.0.0') {
     $firewallArgs.LocalAddress = $ListenHost
 }
 New-NetFirewallRule @firewallArgs | Out-Null
+New-NetFirewallRule `
+    -DisplayName $hotspotFirewallName `
+    -Description 'Allow WLOC proxy only from Windows Mobile Hotspot clients' `
+    -Direction Inbound `
+    -Action Allow `
+    -Protocol TCP `
+    -LocalAddress '192.168.137.1' `
+    -LocalPort $ProxyPort `
+    -RemoteAddress '192.168.137.0/24' `
+    -Profile Any | Out-Null
 
 Set-Content -Encoding ASCII $shortcut "[InternetShortcut]`r`nURL=http://127.0.0.1:$SettingsPort/`r`n"
 Start-ScheduledTask -TaskName $taskName
+Start-ScheduledTask -TaskName $watchTaskName
 
 $healthy = $false
 for ($attempt = 0; $attempt -lt 20; $attempt++) {
@@ -129,7 +164,7 @@ if (-not $healthy) {
 $displayIp = $ListenHost
 if ($ListenHost -eq '0.0.0.0') {
     $displayIp = Get-NetIPConfiguration |
-        Where-Object { $_.IPv4DefaultGateway -and $_.NetAdapter.Status -eq 'Up' } |
+        Where-Object { $_.IPv4DefaultGateway -and $_.NetAdapter.Status -eq 'Up' -and $_.NetAdapter.HardwareInterface } |
         ForEach-Object { $_.IPv4Address.IPAddress } |
         Select-Object -First 1
 }

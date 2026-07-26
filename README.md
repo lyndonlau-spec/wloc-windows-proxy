@@ -17,6 +17,7 @@
 - 设置持久化，代理重启后继续生效
 - 可选串联 Clash Verge、Mihomo 等现有 HTTP 上游代理
 - 计划任务开机启动；防火墙仅允许专用网络的本地子网访问
+- 上游 Wi‑Fi、IP 或网关变化后自动重启代理，清理失效的旧连接
 - 未设置坐标或停止模拟时原样放行 WLOC 响应
 
 ## 原理
@@ -86,10 +87,10 @@ Set-ExecutionPolicy -Scope Process Bypass -Force
 
 1. 创建 `C:\ProgramData\WlocProxy`；
 2. 建立独立 Python 虚拟环境并安装锁定版本的 mitmproxy；
-3. 注册 SYSTEM 计划任务 `WLOC Proxy`；
-4. 添加仅限专用网络、本地子网的 Windows 防火墙规则；
+3. 注册 SYSTEM 计划任务 `WLOC Proxy` 与 `WLOC Network Watch`；
+4. 添加专用局域网规则，以及仅允许 `192.168.137.0/24` 访问的 Windows 移动热点规则；
 5. 在公共桌面创建 `WLOC Location Settings` 快捷方式；
-6. 启动代理并检查设置服务健康状态。
+6. 启动代理和网络切换监视器，并检查设置服务健康状态。
 
 ## iPhone 配置
 
@@ -136,12 +137,37 @@ http://127.0.0.1:8081/
 
 点击地图或输入 WGS‑84 经纬度，然后点击“保存并启用”。点击“停止模拟”会恢复透传模式。
 
+## Windows 移动热点中继（可选）
+
+需要让手机 A 提供蜂窝网络、手机 B 使用虚拟定位时，可使用以下链路：
+
+```text
+手机 A 热点 → Windows WLAN → Windows 移动热点 → 手机 B
+                                      └→ HTTP 代理 192.168.137.1:8080
+```
+
+配置步骤：
+
+1. Windows 先连接手机 A 的热点；
+2. 在 `设置 → 网络和 Internet → 移动热点` 中选择通过 Wi‑Fi 共享；
+3. 手机 B 连接 Windows 创建的移动热点；
+4. 手机 B 将该 Wi‑Fi 的代理设为 `192.168.137.1:8080`，鉴定关闭；
+5. 打开 `http://mitm.it` 安装并完全信任 CA，然后再测试 HTTPS 和定位。
+
+默认安装使用 `0.0.0.0:8080`，同时监听上游 WLAN 和移动热点接口。`WLOC Network Watch` 检测到上游 SSID、IPv4 或网关变化后，会等待网络稳定并重启代理，避免 mitmproxy 保留旧网络连接。
+
+如果使用 Clash Verge/Mihomo：
+
+- 要串联 Clash，安装时显式填写 `-UpstreamProxy http://127.0.0.1:7897`，并确保该端口在热点网络下可用；
+- 要让流量直接从手机 A 热点退出，应完全停止 Clash/Mihomo 服务和 TUN，而不是只关闭“系统代理”；
+- `http://mitm.it` 能打开但外部 HTTP 网站打不开，表示手机 B 到 Windows 正常，故障位于 Windows 的上游出口。
+
 ## 验证
 
 ### 服务状态
 
 ```powershell
-Get-ScheduledTask -TaskName 'WLOC Proxy'
+Get-ScheduledTask -TaskName 'WLOC Proxy','WLOC Network Watch'
 Get-NetTCPConnection -State Listen | Where-Object LocalPort -In 8080,8081
 Invoke-RestMethod http://127.0.0.1:8081/health
 ```
@@ -250,6 +276,7 @@ HTTPS 中间人证书具有较高权限：
 |---|---|
 | `wloc_proxy.py` | mitmproxy 插件、protobuf 改写与本地选点页面 |
 | `run.ps1` | 计划任务实际运行入口 |
+| `network-watch.ps1` | 上游网络变化监视和 WLOC 自动重启 |
 | `install.ps1` | 管理员一键安装/更新 |
 | `uninstall.ps1` | 完整卸载 |
 | `requirements.txt` | Python 依赖锁定 |
