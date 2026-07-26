@@ -36,6 +36,9 @@ if (-not $pythonCommand) {
 }
 $python = $pythonCommand.Source
 $pythonVersion = & $python -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"
+if ($LASTEXITCODE -ne 0 -or -not $pythonVersion) {
+    throw 'The python command could not start. Install Python 3.12 or newer from python.org and enable Add Python to PATH.'
+}
 $versionParts = $pythonVersion.Split('.')
 if ([int]$versionParts[0] -lt 3 -or ([int]$versionParts[0] -eq 3 -and [int]$versionParts[1] -lt 12)) {
     throw "Python 3.12 or newer is required; found $pythonVersion."

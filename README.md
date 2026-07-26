@@ -1,5 +1,9 @@
 # WLOC Windows Proxy
 
+![Platform](https://img.shields.io/badge/platform-Windows-0078D4?logo=windows)
+![Python](https://img.shields.io/badge/python-%E2%89%A53.12-3776AB?logo=python&logoColor=white)
+![License](https://img.shields.io/badge/license-MIT-green)
+
 在 Windows 上运行的 Apple WLOC 网络定位改写代理。电脑端地图选点，iPhone 只需配置 Wi‑Fi HTTP 代理，无需在手机运行 Surge、Shadowrocket 或 VPN。
 
 > Windows-hosted Apple WLOC response rewriting proxy for authorized iOS testing.
